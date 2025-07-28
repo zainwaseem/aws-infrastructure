@@ -19,6 +19,9 @@ variable "my_ip" {
 variable "my_public_key_location" {
 
 }
+variable "my_private_key_location" {
+
+}
 variable "instance_Type"{}
 
 
@@ -195,21 +198,43 @@ resource "aws_instance" "myApp-Server" {
     associate_public_ip_address = true
     key_name = aws_key_pair.SSH-myApp-key.key_name
     # key_name = "server-key-pair"
-    user_data = file("user-script.sh")
-    # <<EOF
-    #         #!/bin/bash
-    #         sudo yum update -y
-    #         sudo yum install docker -y
-    #         sudo systemctl start docker
-    #         sudo systemctl enable docker
-    #         usermod -aG docker ec2-user
-    #         docker run -d -p 8080:80 --restart unless-stopped nginx
-    # EOF
+    # user_data = file("user-script.sh")
+
+
+
+    provisioner "file" {
+        source = "user-script.sh"
+        destination = "/home/ec2-user/user-script.sh"
+    }
+
+    connection {
+      type = "ssh"
+      host = self.public_ip
+      user = "ec2-user"
+      private_key = file(var.my_private_key_location)
+    }
+
+    # Provisioner for remote-exec
+    provisioner "remote-exec" {
+        script = "user-script.sh"
+        # inline = [
+        #     "export ENV=dev",
+        #     "mkdir newdir"
+        # ]
+    }
+
+    provisioner "local-exec" {
+        command = "echo ${aws_instance.myApp-Server.public_ip} > ip_address.txt"
+    }
+    
 
     tags = {
         Name = "${var.env_prefix}-server"
     }
 }
-output "ami_id" {
-    value = data.aws_ami.latest-amazon-linux-image
+# output "ami_id" {
+#     value = data.aws_ami.latest-amazon-linux-image
+# }
+output "ec2_public_ip" {
+    value = aws_instance.myApp-Server.public_ip
 }
